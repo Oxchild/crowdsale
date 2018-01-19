@@ -9,7 +9,7 @@ import './WhiteList.sol';
  * @title APIS Crowd Pre-Sale
  * @dev 토큰의 프리세일을 수행하기 위한 컨트랙트
  */
-contract ApisCrowdPreSaleTest is Ownable {
+contract ApisCrowdPreSale is Ownable {
     
     // 소수점 자리수. QTUM 8자리에 맞춘다 (ETH의 경우 18자리)
     uint8 public constant decimals = 8;
@@ -44,10 +44,10 @@ contract ApisCrowdPreSaleTest is Ownable {
     uint public suspensionPeriod;
     
     // APIS 토큰 컨트렉트
-    ApisToken public tokenReward;
+    ApisToken internal tokenReward;
     
     // 화이트리스트 컨트렉트
-    WhiteList public whiteList;
+    WhiteList internal whiteList;
     
     mapping (address => Property) public fundersProperty;
     
@@ -117,42 +117,42 @@ contract ApisCrowdPreSaleTest is Ownable {
     
     /**
      * @dev 크라우드 세일 컨트렉트를 생성한다.
-     * @param _fundingGoal 판매하는 토큰의 양 (APIS)
+     * @param _fundingGoalApis 판매하는 토큰의 양 (APIS 단위)
      * @param _priceOfApisPerQtum 1 Qtum으로 구매할 수 있는 APIS의 개수
-     * @param _qtumDepositLimitIn24hr 세일이 시작하고 24시간 이내에 입금 가능한 Qtum의 양 (Satoshi)
+     * @param _qtumDepositLimitIn24hrSatoshi 세일이 시작하고 24시간 이내에 입금 가능한 Qtum의 양 (Satoshi)
      * @param _endTime 크라우드 세일을 종료하는 시간
      * @param _addressOfApisTokenUsedAsReward APIS 토큰의 컨트렉트 주소
      * @param _addressOfWhiteList WhiteList 컨트렉트 주소
      */
-    function ApisCrowdPreSaleTest (
-        uint256 _fundingGoal,
+    function ApisCrowdPreSale (
+        uint256 _fundingGoalApis,
         uint256 _priceOfApisPerQtum,
-        uint256 _qtumDepositLimitIn24hr,
+        uint256 _qtumDepositLimitIn24hrSatoshi,
         uint _endTime,
         address _addressOfApisTokenUsedAsReward,
         address _addressOfWhiteList
     ) public {
-        require (_fundingGoal > 0);
+        require (_fundingGoalApis > 0);
         require (_priceOfApisPerQtum > 0);
-        require (_qtumDepositLimitIn24hr > 0);
+        require (_qtumDepositLimitIn24hrSatoshi > 0);
         require (_endTime > now);
         require (_addressOfApisTokenUsedAsReward != 0x0);
         require (_addressOfWhiteList != 0x0);
         
-        fundingGoal = _fundingGoal * 10 ** uint256(decimals);
+        fundingGoal = _fundingGoalApis * 10 ** uint256(decimals);
         priceOfApisPerQtum = _priceOfApisPerQtum;
         endTime = _endTime;
         claimableTime = 99999999999;
-        suspensionPeriod = 10 minutes;		// 테스트를 위함
+        suspensionPeriod = 10 minutes;
         
         // 오버플로우 감지
-        assert(fundingGoal > _fundingGoal);
+        require (fundingGoal > _fundingGoalApis);
         
-        // 펀딩 목표에 따라서 토큰 발행 총량을 설정한다
+        // 토큰 스마트컨트렉트를 불러온다
         tokenReward = ApisToken(_addressOfApisTokenUsedAsReward);
         
         // 24시간 이내에 입금 가능한 Qtum 수량을 저장한다
-        qtumDepositLimitIn24hr = _qtumDepositLimitIn24hr;
+        qtumDepositLimitIn24hr = _qtumDepositLimitIn24hrSatoshi;
         
         // 화이트 리스트를 가져온다
         whiteList = WhiteList(_addressOfWhiteList);
@@ -164,11 +164,11 @@ contract ApisCrowdPreSaleTest is Ownable {
      */
     function changeSellingState (uint8 _state) onlyOwner public {
         require (_state < 3);
-        //require(saleState < _state);    // 테스트, 단계를 임의로 설정 가능
+        //require(saleState < _state);    // 테스트를 위해 주석처리. 다음 단계로만 변경할 수 있도록 한다
         
         saleState = _state;
         
-        if(startTime == 0 && saleState == 1) {
+        if(saleState == 1) {
             startTime = now;
         }
     }
@@ -182,8 +182,6 @@ contract ApisCrowdPreSaleTest is Ownable {
      * @param _claimableTime 토큰 클레임이 가능해지는 시간
      */
     function setClaimableTime(uint _claimableTime) onlyOwner public {
-        require(_claimableTime > 0);
-        
         claimableTime = _claimableTime;
     }
     
@@ -208,7 +206,7 @@ contract ApisCrowdPreSaleTest is Ownable {
     
     /**
      * @dev 토큰을 구입하기 위해 Qtum을 입금받는다.
-     * @param _beneficiary Qtum을 입금한 지갑의 주소
+     * @param _beneficiary 토큰을 받게 될 지갑의 주소
      */
     function buyToken(address _beneficiary) onSale public payable {
         require(_beneficiary != 0x0);
@@ -245,12 +243,11 @@ contract ApisCrowdPreSaleTest is Ownable {
         ReservedApis(_beneficiary, amountQtum, reservedApis);
     }
     
-    // 판매가 끝났다면 true 반환
-    function hasEnded() public view returns (bool) {
-        return (now > endTime) || (saleState == 2);
-    }
     
-    // 크라우드 세일의 현재 상태를 반환한다
+    /**
+     * @dev 크라우드 세일의 현재 상태를 반환한다.
+     * @return 현재 상태
+     */
     function sellingState() public view returns (string) {
         if(saleState == 0) {
             return "Not yet opened";
@@ -262,60 +259,6 @@ contract ApisCrowdPreSaleTest is Ownable {
     }
     
     
-    /**
-     * @dev 토큰을 청구할 자격이 있는지 확인한다.
-     * @return 현재 상태에 대한 안내 메시지
-     */
-    function canClaimMyToken() public constant returns (string) {
-        // 청구할 수 있는 토큰이 없으면 
-        if(fundersProperty[msg.sender].reservedApis == 0) {
-            return "IMPOSSIBLE : There are no tokens to claim.";
-        }
-        
-        // 지갑에서 토큰을 받을 수 없는 상태일 경우
-        if(tokenReward.isWalletLockedReceivingToken(msg.sender) == true) {
-            return "IMPOSSIBLE : Your wallet is locked.";
-        }
-        
-        
-        // 토큰을 청구할 수 있는 시간이 지났는지 확인
-        bool afterClaimableTime = now > claimableTime;
-        bool afterSuspension = now > fundersProperty[msg.sender].purchaseTime + suspensionPeriod;
-        
-        if(afterClaimableTime == true || afterSuspension == true) {
-            return "POSSIBLE : You can claim tokens.";
-        }
-        
-        else {
-            return "IMPOSSIBLE : Please check 'getRemainingSecondsForClaim()'.";
-        }
-        
-        
-    }
-    
-    /**
-     * @dev 시간이 아직 안됐을 경우, 얼마나 남았는지 확인
-     */
-    function getRemainingSecondsForClaim() public constant returns (uint) {
-        // 유예기간으로부터 남은 시간
-        uint timeClaimableBySuspension = fundersProperty[msg.sender].purchaseTime + suspensionPeriod;
-        // 판매 종료로 인한 클레임 가능한 시간으로부터 남은 시간
-        uint timeClaimableByEnd = claimableTime;
-        
-        // 두 클레임 가능한 시간 중 더 빠른 시간을 찾는다 
-        uint timeClaimable = 0;
-        if(timeClaimableBySuspension < timeClaimableByEnd) {
-            timeClaimable = timeClaimableBySuspension;
-        } else {
-            timeClaimable = timeClaimableByEnd;
-        }
-        
-        if(now > timeClaimable) {
-            return 0;
-        } else {
-            return timeClaimable - now;
-        }
-    }
     
     
     /**
@@ -341,33 +284,8 @@ contract ApisCrowdPreSaleTest is Ownable {
         // 화이트리스트에 등록되있을 때에만 토큰 클래임이 가능하다
         require(whiteList.isInWhiteList(msg.sender) == true);
         
-        // 지갑의 입금 받는 기능에 제한이 없어야만 클레임이 가능하다
-        require(tokenReward.isWalletLockedReceivingToken(msg.sender) == false);
-        
         
         withdrawal(msg.sender);
-    }
-    
-    
-    /**
-     * @dev 아직 토큰을 발급받지 않은 지갑을 대상으로, 환불을 진행할 수 있다.
-     * @param _funder 환불을 진행하려는 지갑의 주소
-     */
-    function refund(address _funder) onlyOwner public {
-        require(fundersProperty[_funder].reservedQtum > 0);
-        require(fundersProperty[_funder].reservedApis > 0);
-        require(fundersProperty[_funder].withdrawed == false);
-        
-        uint256 amount = fundersProperty[_funder].reservedQtum;
-        
-        // Qtum을 환불한다
-        _funder.transfer(amount);
-        
-        fundersProperty[_funder].reservedQtum = 0;
-        fundersProperty[_funder].reservedApis = 0;
-        fundersProperty[_funder].withdrawed = true;
-        
-        Refund(_funder, amount);
     }
     
     
@@ -396,6 +314,28 @@ contract ApisCrowdPreSaleTest is Ownable {
         
         
         WithdrawalApis(funder, fundersProperty[funder].reservedApis, fundersProperty[funder].withdrawed);
+    }
+    
+    
+    /**
+     * @dev 아직 토큰을 발급받지 않은 지갑을 대상으로, 환불을 진행할 수 있다.
+     * @param _funder 환불을 진행하려는 지갑의 주소
+     */
+    function refund(address _funder) onlyOwner public {
+        require(fundersProperty[_funder].reservedQtum > 0);
+        require(fundersProperty[_funder].reservedApis > 0);
+        require(fundersProperty[_funder].withdrawed == false);
+        
+        uint256 amount = fundersProperty[_funder].reservedQtum;
+        
+        // Qtum을 환불한다
+        _funder.transfer(amount);
+        
+        fundersProperty[_funder].reservedQtum = 0;
+        fundersProperty[_funder].reservedApis = 0;
+        fundersProperty[_funder].withdrawed = true;
+        
+        Refund(_funder, amount);
     }
     
     
