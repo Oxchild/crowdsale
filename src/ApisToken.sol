@@ -84,10 +84,10 @@ contract ApisToken is StandardToken, Ownable {
      * @dev 토큰 컨트렉트를 생성한 지갑에 모든 토큰을 할당한다.
      * @param _supply 총 생성되는 토큰의 양(APIS)
      */
-    function ApisToken(uint256 _supply) public {
+    function ApisToken(uint256 _supply, string _name, string _symbol) public {
         // 토큰의 이름과 단위를 설정한다
-        name = "Property Investment System";
-        symbol = "APIS";
+        name = _name;
+        symbol = _symbol;
         
         // 사토시 단위로 토큰 총량을 생성한다.
         totalSupply = _supply * 10 ** uint256(decimals);
