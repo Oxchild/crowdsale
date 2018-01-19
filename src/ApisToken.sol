@@ -128,43 +128,6 @@ contract ApisToken is StandardToken, Ownable {
         walletLock(_targetWallet, 0, false, false);
     }
     
-    /**
-     * @dev 지갑의 송금 기능이 제한되어있는지 확인한다.
-     * @param _addr 송금 제한 여부를 확인하려는 지갑의 주소
-     * @return (true : 제한되어 있음, 토큰을 보낼 수 없음) (false : 제한 없음, 토큰을 보낼 수 있음)
-     */
-    function isWalletLockedSendingToken(address _addr) public constant returns (bool) {
-        require(_addr != 0x0);
-        
-        return (lockedWalletInfo[_addr].timeLockUpEnd > now && lockedWalletInfo[_addr].sendLock == true);
-    }
-    
-    /**
-     * @dev 지갑의 입금 기능이 제한되어있는지 확인한다.
-     * @param _addr 입금 제한 여부를 확인하려는 지갑의 주소
-     * @return (true : 제한되어 있음, 토큰을 받을 수 없음) (false : 제한 없음, 토큰을 받을 수 있음)
-     */
-    function isWalletLockedReceivingToken(address _addr) public constant returns (bool) {
-        require(_addr != 0x0);
-        
-        return (lockedWalletInfo[_addr].timeLockUpEnd > now && lockedWalletInfo[_addr].receiveLock == true);
-    }
-    
-    /**
-     * @dev 요청자의 지갑에 송금 기능이 제한되어있는지 확인한다.
-     * @return (true : 제한되어 있음, 토큰을 보낼 수 없음) (false : 제한 없음, 토큰을 보낼 수 있음)
-     */
-    function isMyWalletLockedSendingToken() public constant returns (bool) {
-        return isWalletLockedSendingToken(msg.sender);
-    }
-    
-    /**
-     * @dev 요청자의 지갑에 입금 기능이 제한되어있는지 확인한다.
-     * @return (true : 제한되어 있음, 토큰을 보낼 수 없음) (false : 제한 없음, 토큰을 보낼 수 있음)
-     */
-    function isMyWalletLockedReceivingToken() public constant returns (bool) {
-        return isWalletLockedReceivingToken(msg.sender);
-    }
     
     
     /**
