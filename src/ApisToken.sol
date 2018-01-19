@@ -87,7 +87,7 @@ contract ApisToken is StandardToken, Ownable {
     function ApisToken(uint256 _supply) public {
         // 토큰의 이름과 단위를 설정한다
         name = "Property Investment System";
-        symbol = "APISTEST";
+        symbol = "APIS";
         
         // 사토시 단위로 토큰 총량을 생성한다.
         totalSupply = _supply * 10 ** uint256(decimals);
