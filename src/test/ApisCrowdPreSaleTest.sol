@@ -285,7 +285,7 @@ contract ApisCrowdPreSale is Ownable {
         require(whiteList.isInWhiteList(msg.sender) == true);
         
         
-        withdrawal(msg.sender);
+        withdrawal(msg.sender); 
     }
     
     
