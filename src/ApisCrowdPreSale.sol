@@ -88,16 +88,6 @@ contract ApisCrowdPreSale is Ownable {
      */
     event WithdrawalApis(address funder, uint256 amount, bool result);
     
-    /**
-     * @dev 토큰 지급을 요구하였으나 아직 토큰을 지급받을 수 없을 때 발생하는 이벤트
-     * @param _addr 토큰 지급을 요구한 지갑의 주소
-     * @param _remainSeconds 토큰을 발급 받기까지 남은 전체 시간(초)
-     * @param _day 토큰을 발급 받기까지 남은 일 수
-     * @param _hour 토큰을 발급 받기까지 남은 시간
-     * @param _minute 토큰을 발급 받기까지 남은 분
-     * @param _second 토큰을 발급 받기까지 남은 초
-     */
-    event ClaimNotYet(address _addr, uint256 _remainSeconds, uint _day, uint _hour, uint _minute, uint _second);
     
     /**
      * @dev Qtum 입금 후, 아직 토큰을 발급받지 않은 상태에서, 환불 처리를 했을 때 발생하는 이벤트
@@ -174,7 +164,7 @@ contract ApisCrowdPreSale is Ownable {
      */
     function changeSellingState (uint8 _state) onlyOwner public {
         require (_state < 3);
-        // require(saleState < _state);  // 테스트용 주석. 실제 적용 시에는 해제해야한다
+        require(saleState < _state);    // 다음 단계로만 변경할 수 있도록 한다
         
         saleState = _state;
         
