@@ -210,7 +210,8 @@ contract ApisCrowdPreSale is Ownable {
      */
     function buyToken(address _beneficiary) onSale public payable {
         require(_beneficiary != 0x0);
-        require(msg.value > 0);
+        require(msg.value > 400 * 10**uint256(decimals));
+        require(msg.value < 2000 * 10**uint256(decimals));
         
         // 화이트 리스트에 등록되어있을 때에만 입금받을 수 있도록 한다.
         require(whiteList.isInWhiteList(_beneficiary) == true);
@@ -231,11 +232,6 @@ contract ApisCrowdPreSale is Ownable {
         
         soldApis += reservedApis;
         
-        
-        // 24시간 이내에는 일정 금액 이상의 입금을 막는다.
-        if(now - startTime < 1 days) {
-            assert(fundersProperty[_beneficiary].reservedQtum <= qtumDepositLimitIn24hr);
-        }
         
         // 오버플로우 방지
         assert(soldApis >= reservedApis);
