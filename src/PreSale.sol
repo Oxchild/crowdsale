@@ -14,12 +14,6 @@ contract PreSale is Ownable {
     // 소수점 자리수. QTUM 8자리에 맞춘다 (ETH의 경우 18자리)
     uint8 public constant decimals = 8;
     
-    /**
-     * @dev 현재 크라우드 세일의 상태를 저장한다.
-     * 
-     * (0 : 판매 시작 전) (1 : 판매 진행 중) (2 : 판매 종료 후)
-     */
-    uint8 internal saleState = 0;
     
     // 크라우드 세일의 판매 목표량(Satoshi)
     uint256 public fundingGoal;
@@ -34,8 +28,13 @@ contract PreSale is Ownable {
     uint public startTime;
     uint public endTime;
     
-    // Qtum 입금 후 토큰 발행까지의 유예기간
-    uint public suspensionPeriod;
+    // 캡 제한 (최대 입금액과 최소 입금액)
+    uint public maximumAmount;
+    uint public minimumAmount;
+    
+    // 프리세일에 참여할 수 있는 가스 금액(사토시)..가스 가격에 따른 우선순위 변경을 막기 위함
+    uint public gasPrice;
+    
     
     // APIS 토큰 컨트렉트
     ApisToken internal tokenReward;
@@ -49,11 +48,8 @@ contract PreSale is Ownable {
      * @dev APIS 토큰 구매자의 자산 현황을 정리하기 위한 구조체
      */
     struct Property {
-        uint256 reservedQtum;   // 입금했지만 아직 APIS로 변환되지 않은 Qtum (환불 가능)
-        uint256 paidQtum;    	// APIS로 변환된 Qtum (환불 불가)
-        uint256 reservedApis;   // 받을 예정인 토큰
-        uint256 withdrawedApis; // 이미 받은 토큰
-        bool withdrawed;        // 토큰 발급 여부 (true : 발급 받았음) (false : 아직 발급 받지 않았음)
+        uint256 paidQtum;    	// 입금 받은 Qtum
+        uint256 withdrawedApis; // 발행된 토큰
     }
     
     
@@ -68,14 +64,13 @@ contract PreSale is Ownable {
      * @dev 구매자에게 토큰이 발급되었을 때 발생하는 이벤트
      * @param funder 토큰을 받는 지갑의 주소
      * @param amount 발급 받는 토큰의 양 (Satoshi)
-     * @param result 토큰 발급 성공 여부 (true : 성공) (false : 실패)
      */
-    event WithdrawalApis(address funder, uint256 amount, bool result);
+    event WithdrawalApis(address funder, uint256 amount);
     
     
     // 세일 중에만 동작하도록
     modifier onSale() {
-        require(saleState == 1);
+        require(now >= startTime);
         require(now < endTime);
         _;
     }
@@ -92,20 +87,30 @@ contract PreSale is Ownable {
     function PreSale (
         uint256 _fundingGoalApis,
         uint256 _priceOfApisPerQtum,
+        uint _startTime,
         uint _endTime,
+        uint256 _minimumAmount,
+        uint256 _maximumAmount,
         address _addressOfApisTokenUsedAsReward,
         address _addressOfWhiteList
     ) public {
         require (_fundingGoalApis > 0);
         require (_priceOfApisPerQtum > 0);
+        require (_startTime > now);
         require (_endTime > now);
+        require (_endTime > _startTime);
+        require (_maximumAmount > 0);
+        require (_minimumAmount > 0);
         require (_addressOfApisTokenUsedAsReward != 0x0);
         require (_addressOfWhiteList != 0x0);
         
         fundingGoal = _fundingGoalApis * 10 ** uint256(decimals);
         priceOfApisPerQtum = _priceOfApisPerQtum;
+        startTime = _startTime;
         endTime = _endTime;
-        suspensionPeriod = 7 days;
+        maximumAmount = _maximumAmount * 10 ** uint256(decimals);
+        minimumAmount = _minimumAmount * 10 ** uint256(decimals);
+        gasPrice = 70;
         
         // 오버플로우 감지
         require (fundingGoal > _fundingGoalApis);
@@ -117,21 +122,6 @@ contract PreSale is Ownable {
         whiteList = WhiteList(_addressOfWhiteList);
     }
     
-    /**
-     * @dev 크라우드 세일의 현재 진행 상태를 변경한다.
-     * @param _state 상태 값 (0 : 시작 전) (1 : 진행 중) (2 : 종료 후)
-     */
-    function changeSellingState (uint8 _state) onlyOwner public {
-        require (_state < 3);
-        require(saleState < _state);    // 다음 단계로만 변경할 수 있도록 한다
-        
-        saleState = _state;
-        
-        if(saleState == 1) {
-            startTime = now;
-        }
-    }
-    
     
     
     /**
@@ -139,7 +129,7 @@ contract PreSale is Ownable {
      * @param _addr 잔고를 확인하려는 지갑의 주소
      * @return balance 지갑에 들은 APIS 잔고 (Satoshi)
      */
-    function balanceOf(address _addr) public view returns (uint256 balance) {
+    function balanceOfApis(address _addr) public view returns (uint256 balance) {
         return tokenReward.balanceOf(_addr);
     }
     
@@ -158,74 +148,38 @@ contract PreSale is Ownable {
      */
     function buyToken(address _beneficiary) onSale public payable {
         require(_beneficiary != 0x0);
-        require(msg.value >= 400 * 10**uint256(decimals));
-        require(msg.value <= 2000 * 10**uint256(decimals));
+        
+        // 여러번 입금해도 입금 최소 제한을 넘어야 한다.
+        require(msg.value + fundersProperty[_beneficiary].paidQtum >= minimumAmount);
+        
         // 여러번 입금하더라도 입금 제한을 초과하면 안된다.
-        require(fundersProperty[_beneficiary].reservedQtum + fundersProperty[_beneficiary].paidQtum <= 2000 *10**uint256(decimals));
+        require(msg.value + fundersProperty[_beneficiary].paidQtum <= maximumAmount);
         
         // 화이트 리스트에 등록되어있을 때에만 입금받을 수 있도록 한다.
         require(whiteList.isInWhiteList(_beneficiary) == true);
         
+        // Gas 가격에 따른 우선순위 변경을 막기 위해 가스 값을 지정한다.
+        require(tx.gasprice == 70);
         
         uint256 amountQtum = msg.value;
-        uint256 reservedApis = amountQtum * priceOfApisPerQtum;
+        uint256 withdrawedApis = amountQtum * priceOfApisPerQtum;
+        
         
         // 오버플로우 방지
-        require(reservedApis > amountQtum);
-        // 목표 금액을 넘어서지 못하도록 한다
-        require(soldApis + reservedApis <= fundingGoal);
+        require(withdrawedApis > amountQtum);
         
-        fundersProperty[_beneficiary].reservedQtum += amountQtum;
-        fundersProperty[_beneficiary].reservedApis += reservedApis;
-        fundersProperty[_beneficiary].withdrawed = false;
-        
-        soldApis += reservedApis;
-        
-        withdrawal(msg.sender);
-    }
-    
-    
-    /**
-     * @dev 크라우드 세일의 현재 상태를 반환한다.
-     * @return 현재 상태
-     */
-    function sellingState() public view returns (string) {
-        if(saleState == 0) {
-            return "Not yet opened";
-        } else if(saleState == 1) {
-            return "Opened";
-        } else {
-            return "Closed";
-        }
-    }
-    
-    
-    
-    /**
-     * @dev 구매자에게 토큰을 지급한다.
-     * @param funder 토큰을 지급할 지갑의 주소
-     */
-    function withdrawal(address funder) internal {
-        require(fundersProperty[funder].reservedApis > 0);      // 인출할 잔고가 있어야 한다
-        require(fundersProperty[funder].withdrawed == false);    // 아직 출금하지 않았어야 한다
+        // 목표 금액 초과 방지
+        require(soldApis + withdrawedApis <= fundingGoal);
         
         // 구매자 지갑으로 토큰을 전달한다
-        tokenReward.transfer(funder, fundersProperty[funder].reservedApis);
+        tokenReward.transfer(_beneficiary, withdrawedApis);
         
-        fundersProperty[funder].withdrawedApis += fundersProperty[funder].reservedApis;
-        fundersProperty[funder].paidQtum += fundersProperty[funder].reservedQtum;
+        fundersProperty[_beneficiary].paidQtum += amountQtum;
+        fundersProperty[_beneficiary].withdrawedApis += withdrawedApis;
         
-        // 오버플로우 방지
-        assert(fundersProperty[funder].withdrawedApis >= fundersProperty[funder].reservedApis);  
+        soldApis += withdrawedApis;
         
-        // 인출하지 않은 APIS 잔고를 0으로 변경해서, Qtum 재입금 시 이미 출금한 토큰이 다시 출금되지 않게 한다.
-        fundersProperty[funder].reservedQtum = 0;
-        fundersProperty[funder].reservedApis = 0;
-        fundersProperty[funder].withdrawed = true;
-        
-        
-        
-        WithdrawalApis(funder, fundersProperty[funder].reservedApis, fundersProperty[funder].withdrawed);
+        WithdrawalApis(_beneficiary, fundersProperty[_beneficiary].withdrawedApis);
     }
     
     
@@ -233,7 +187,7 @@ contract PreSale is Ownable {
     // 펀딩이 종료되고, 적립된 Qtum을 소유자에게 전송한다
     // saleState 값이 2(종료)로 설정되어야만 한다
     function withdrawalOwner() onlyOwner public {
-        require(saleState == 2);
+        require(now > endTime);
         
         uint256 amount = this.balance;
         if(amount > 0) {
@@ -244,7 +198,8 @@ contract PreSale is Ownable {
         // 컨트렉트에 남은 토큰을 반환한다 
         uint256 token = tokenReward.balanceOf(this);
         tokenReward.transfer(msg.sender, token);
-        WithdrawalApis(msg.sender, token, true);
+        
+        WithdrawalApis(msg.sender, token);
     }
     
     /**
