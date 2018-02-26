@@ -17,6 +17,10 @@ contract ApisCrowdSale is Ownable {
     // 크라우드 세일의 판매 목표량(APIS)
     uint256 public fundingGoal;
     
+    // 현재 진행하는 판매 목표량 
+    // QTUM과 공동으로 판매가 진행되기 때문에,  QTUM 쪽 컨트렉트와 합산한 판매량이 총 판매목표를 넘지 않도록 하기 위함
+    uint256 public fundingGoalCurrent;
+    
     // 1 ETH으로 살 수 있는 APIS의 갯수
     uint256 public priceOfApisPerFund;
     
@@ -108,12 +112,13 @@ contract ApisCrowdSale is Ownable {
     
     
     /**
-     * @dev 크라우드 세일 진행 중에만 동작하도록 제한
+     * @dev 크라우드 세일 진행 중에만 동작하도록 제한하고, APIS의 가격도 설정되어야만 한다.
      */
     modifier onSale() {
         require(now >= startTime);
         require(now < endTime);
         require(closed == false);
+        require(priceOfApisPerFund > 0);
         _;
     }
     
@@ -138,7 +143,6 @@ contract ApisCrowdSale is Ownable {
     /**
      * @dev 크라우드 세일 컨트렉트를 생성한다.
      * @param _fundingGoalApis 판매하는 토큰의 양 (APIS 단위)
-     * @param _priceOfApisPerFund 1 Qtum으로 구매할 수 있는 APIS의 개수
      * @param _startTime 크라우드 세일을 시작하는 시간
      * @param _endTime 크라우드 세일을 종료하는 시간
      * @param _addressOfApisTokenUsedAsReward APIS 토큰의 컨트렉트 주소
@@ -146,14 +150,12 @@ contract ApisCrowdSale is Ownable {
      */
     function ApisCrowdSale (
         uint256 _fundingGoalApis,
-        uint256 _priceOfApisPerFund,
         uint _startTime,
         uint _endTime,
         address _addressOfApisTokenUsedAsReward,
         address _addressOfWhiteList
     ) public {
         require (_fundingGoalApis > 0);
-        require (_priceOfApisPerFund > 0);
         require (_startTime > now);
         require (_endTime > _startTime);
         require (_addressOfApisTokenUsedAsReward != 0x0);
@@ -161,13 +163,13 @@ contract ApisCrowdSale is Ownable {
         
         fundingGoal = _fundingGoalApis * 10 ** uint256(decimals);
         
-        priceOfApisPerFund = _priceOfApisPerFund;
+        // 1 Qtum으로 구매할 수 있는 APIS의 개수
+        // priceOfApisPerFund = 5000;
         startTime = _startTime;
         endTime = _endTime;
         
         // 오버플로우 방지
         require (fundingGoal > _fundingGoalApis);
-        
         
         // 토큰 스마트컨트렉트를 불러온다
         tokenReward = ApisToken(_addressOfApisTokenUsedAsReward);
@@ -183,6 +185,25 @@ contract ApisCrowdSale is Ownable {
         require (closed == false);
         
         closed = _closed;
+    }
+    
+    /**
+     * @dev 크라우드 세일 시작 전에 1Eth에 해당하는 APIS 량을 설정한다.
+     */
+    function setPriceOfApis(uint256 price) onlyOwner public {
+        require(priceOfApisPerFund == 0);
+        
+        priceOfApisPerFund = price;
+    }
+    
+    /**
+     * @dev 현 시점에서 판매 가능한 목표량을 수정한다.
+     * @param _fundingGoalCurrent 현 시점의 판매 목표량 (wei 단위)
+     */
+    function setCurrentFundingGoal(uint256 _fundingGoalCurrent) onlyOwner public {
+        require(_fundingGoalCurrent <= fundingGoal);
+        
+        fundingGoalCurrent = _fundingGoalCurrent;
     }
     
     
@@ -209,9 +230,14 @@ contract ApisCrowdSale is Ownable {
     }
     
     
+    /**
+     * @dev 전달받은 지갑이 APIS 지급 요청이 가능한지 확인한다.
+     * @param _addr 확인하는 주소
+     * @return message 결과 메시지
+     */
     function isClaimable(address _addr) public view returns (string message) {
         if(fundersProperty[_addr].reservedFunds == 0) {
-            return "There is no claimable balance.";
+            return "The address has no claimable balance.";
         }
         
         if(whiteList.isInWhiteList(_addr) == false) {
@@ -221,6 +247,14 @@ contract ApisCrowdSale is Ownable {
         else {
             return "The address can claim APIS!";
         }
+    }
+    
+    /**
+     * @dev 함수를 호출하는 지갑이 APIS 지급 요청이 가능한지 확인한다.
+     * @return message 결과 메시지
+     */
+    function isClaimableMe() public view returns (string message) {
+        return isClaimable(msg.sender);
     }
     
     
@@ -241,7 +275,11 @@ contract ApisCrowdSale is Ownable {
         require(_beneficiary != 0x0);
         
         // 크라우드 세일 컨트렉트의 토큰 송금 기능이 정지되어있으면 판매하지 않는다
-        require(tokenReward.isWalletLockedSendingToken(this) == false);
+        bool isLocked = false;
+        uint timeLock = 0;
+        (isLocked, timeLock) = tokenReward.isWalletLocked_Send(this);
+        
+        require(isLocked == false);
         
         
         uint256 amountFunds = msg.value;
@@ -251,9 +289,10 @@ contract ApisCrowdSale is Ownable {
         require(reservedApis > amountFunds);
         
         // 목표 금액을 넘어서지 못하도록 한다
+        require(totalSoldApis + reservedApis <= fundingGoalCurrent);
         require(totalSoldApis + reservedApis <= fundingGoal);
         
-        // 투자자의 자산을 업데이틓나다
+        // 투자자의 자산을 업데이트한다
         fundersProperty[_beneficiary].reservedFunds += amountFunds;
         fundersProperty[_beneficiary].reservedApis += reservedApis;
         fundersProperty[_beneficiary].purchaseTime = now;
@@ -287,9 +326,12 @@ contract ApisCrowdSale is Ownable {
      * @param _target 토큰 발급을 청구하려는 지갑 주소
      */
     function claimApis(address _target) onlyOwner public {
-        if(whiteList.isInWhiteList(_target) == true && fundersProperty[_target].reservedFunds > 0) {
-            withdrawal(_target);
-        }
+        // 화이트 리스트에 있어야만 하고
+        require(whiteList.isInWhiteList(_target) == true);
+        // 예약된 투자금이 있어야만 한다.
+        require(fundersProperty[_target].reservedFunds > 0);
+        
+        withdrawal(_target);
     }
     
     /**
