@@ -1,4 +1,22 @@
-[  
+[
+	{
+		"constant": false,
+		"inputs": [
+			{
+				"name": "_targetWallet",
+				"type": "address"
+			},
+			{
+				"name": "_timeLockUpEnd",
+				"type": "uint256"
+			}
+		],
+		"name": "walletLockBoth",
+		"outputs": [],
+		"payable": false,
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
 	{
 		"constant": true,
 		"inputs": [],
@@ -78,6 +96,20 @@
 		"type": "function"
 	},
 	{
+		"constant": false,
+		"inputs": [
+			{
+				"name": "_targetWallet",
+				"type": "address"
+			}
+		],
+		"name": "walletLockBothForever",
+		"outputs": [],
+		"payable": false,
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
 		"constant": true,
 		"inputs": [],
 		"name": "decimals",
@@ -85,6 +117,25 @@
 			{
 				"name": "",
 				"type": "uint8"
+			}
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"constant": true,
+		"inputs": [
+			{
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "manoContracts",
+		"outputs": [
+			{
+				"name": "",
+				"type": "bool"
 			}
 		],
 		"payable": false,
@@ -129,6 +180,24 @@
 		"type": "function"
 	},
 	{
+		"constant": false,
+		"inputs": [
+			{
+				"name": "_to",
+				"type": "address"
+			},
+			{
+				"name": "_apisWei",
+				"type": "uint256"
+			}
+		],
+		"name": "transferAndLockForever",
+		"outputs": [],
+		"payable": false,
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
 		"constant": true,
 		"inputs": [
 			{
@@ -155,7 +224,7 @@
 				"type": "address"
 			},
 			{
-				"name": "_timeLockUpEnd",
+				"name": "_timeLockEnd",
 				"type": "uint256"
 			},
 			{
@@ -168,6 +237,78 @@
 			}
 		],
 		"name": "walletLock",
+		"outputs": [],
+		"payable": false,
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"constant": true,
+		"inputs": [
+			{
+				"name": "_addr",
+				"type": "address"
+			}
+		],
+		"name": "isWalletLocked_Receive",
+		"outputs": [
+			{
+				"name": "isReceiveLocked",
+				"type": "bool"
+			},
+			{
+				"name": "until",
+				"type": "uint256"
+			}
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"constant": false,
+		"inputs": [],
+		"name": "acceptOwnership",
+		"outputs": [],
+		"payable": false,
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"constant": false,
+		"inputs": [
+			{
+				"name": "manoAddr",
+				"type": "address"
+			},
+			{
+				"name": "registered",
+				"type": "bool"
+			}
+		],
+		"name": "registerManoContract",
+		"outputs": [],
+		"payable": false,
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"constant": false,
+		"inputs": [
+			{
+				"name": "_to",
+				"type": "address"
+			},
+			{
+				"name": "_apisWei",
+				"type": "uint256"
+			},
+			{
+				"name": "_timeLockUpEnd",
+				"type": "uint256"
+			}
+		],
+		"name": "transferAndLockUntil",
 		"outputs": [],
 		"payable": false,
 		"stateMutability": "nonpayable",
@@ -209,7 +350,7 @@
 				"type": "address"
 			},
 			{
-				"name": "_value",
+				"name": "_apisWei",
 				"type": "uint256"
 			}
 		],
@@ -266,6 +407,20 @@
 		"type": "function"
 	},
 	{
+		"constant": true,
+		"inputs": [],
+		"name": "newOwner",
+		"outputs": [
+			{
+				"name": "",
+				"type": "address"
+			}
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
 		"constant": false,
 		"inputs": [
 			{
@@ -312,10 +467,51 @@
 		"type": "function"
 	},
 	{
+		"constant": true,
+		"inputs": [],
+		"name": "isMyWalletLocked_Receive",
+		"outputs": [
+			{
+				"name": "isReceiveLocked",
+				"type": "bool"
+			},
+			{
+				"name": "until",
+				"type": "uint256"
+			}
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"constant": true,
+		"inputs": [
+			{
+				"name": "_addr",
+				"type": "address"
+			}
+		],
+		"name": "isWalletLocked_Send",
+		"outputs": [
+			{
+				"name": "isSendLocked",
+				"type": "bool"
+			},
+			{
+				"name": "until",
+				"type": "uint256"
+			}
+		],
+		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
 		"constant": false,
 		"inputs": [
 			{
-				"name": "newOwner",
+				"name": "_newOwner",
 				"type": "address"
 			}
 		],
@@ -326,23 +522,33 @@
 		"type": "function"
 	},
 	{
-		"inputs": [
+		"constant": true,
+		"inputs": [],
+		"name": "isMyWalletLocked_Send",
+		"outputs": [
 			{
-				"name": "_supply",
+				"name": "isSendLocked",
+				"type": "bool"
+			},
+			{
+				"name": "until",
 				"type": "uint256"
-			},
-			{
-				"name": "_name",
-				"type": "string"
-			},
-			{
-				"name": "_symbol",
-				"type": "string"
 			}
 		],
 		"payable": false,
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"payable": false,
 		"stateMutability": "nonpayable",
 		"type": "constructor"
+	},
+	{
+		"payable": true,
+		"stateMutability": "payable",
+		"type": "fallback"
 	},
 	{
 		"anonymous": false,
@@ -464,6 +670,23 @@
 			}
 		],
 		"name": "Burn",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": false,
+				"name": "manoContract",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"name": "registered",
+				"type": "bool"
+			}
+		],
+		"name": "ManoContractRegistered",
 		"type": "event"
 	},
 	{
