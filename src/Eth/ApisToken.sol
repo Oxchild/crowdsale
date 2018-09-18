@@ -21,6 +21,11 @@ contract ApisToken is StandardToken, Ownable {
     // 지갑별로 송금/수금 기능의 잠긴 여부를 저장
     mapping (address => LockedInfo) public lockedWalletInfo;
     
+    /**
+     * @dev 플랫폼에서 운영하는 마스터노드 스마트 컨트렉트 주소
+     */
+    mapping (address => bool) public manoContracts;
+    
     
     /**
      * @dev 토큰 지갑의 잠김 속성을 정의
@@ -81,6 +86,11 @@ contract ApisToken is StandardToken, Ownable {
      * @param value 소각하는 토큰의 양(Satoshi)
      */
     event Burn (address indexed burner, uint256 value);
+    
+    /**
+     * @dev 아피스 플랫폼에 마스터노드 스마트 컨트렉트가 등록되거나 해제될 때 발생하는 이벤트
+     */
+    event ManoContractRegistered (address manoContract, bool registered);
     
     /**
      * @dev 컨트랙트가 생성될 때 실행. 컨트렉트 소유자 지갑에 모든 토큰을 할당한다.
@@ -203,6 +213,17 @@ contract ApisToken is StandardToken, Ownable {
     }
     
     
+    /**
+     * @dev 아피스 플랫폼에서 운영하는 스마트 컨트렉트 주소를 등록하거나 해제한다.
+     * @param manoAddr 마스터노드 스마트 컨트렉컨트렉트
+     * @param registered true : 등록, false : 해제
+     */
+    function registerManoContract(address manoAddr, bool registered) onlyOwner public {
+        manoContracts[manoAddr] = registered;
+        
+        ManoContractRegistered(manoAddr, registered);
+    }
+    
     
     /**
      * @dev _to 지갑으로 _apisWei 만큼의 토큰을 송금한다.
@@ -212,6 +233,11 @@ contract ApisToken is StandardToken, Ownable {
     function transfer(address _to, uint256 _apisWei) public returns (bool) {
         // 자신에게 송금하는 것을 방지한다
         require(_to != address(this));
+        
+        // 마스터노드 컨트렉트일 경우, APIS 송수신에 제한을 두지 않는다
+        if(manoContracts[msg.sender] || manoContracts[_to]) {
+            return super.transfer(_to, _apisWei);
+        }
         
         // 송금 기능이 잠긴 지갑인지 확인한다.
         if(lockedWalletInfo[msg.sender].timeLockUpEnd > now && lockedWalletInfo[msg.sender].sendLock == true) {
